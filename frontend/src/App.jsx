@@ -1,5 +1,5 @@
 import { ContractProvider } from './context/ContractContext'
-import CreateWillForm from './components/WillForm'
+import WillForm from './components/WillForm'
 import ExecuteWill from './components/ExecuteWill'
 import { ToastContainer } from 'react-toastify'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
@@ -15,7 +15,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path='/' element={<Dashboard />} />
-            <Route path='/create' element={<CreateWillForm />} />
+            <Route path='/create' element={<WillForm />} />
             <Route path='/execute' element={<ExecuteWill />} />
             <Route path='/mywill' element={<MyWill /> } />
             <Route path='*' element={<NotFound />} />

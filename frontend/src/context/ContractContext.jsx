@@ -1,103 +1,117 @@
-import { Contract, ethers } from 'ethers'
-import contractAbi from '../abi/CreateWill.json'
-import { createContext, useContext, useEffect, useState } from 'react';
-import { contractAddress } from '../utils/contractAddress';
-import { useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Contract, ethers } from "ethers";
+import contractAbi from "../abi/CreateWill.json";
+import { contractAddress } from "../utils/contractAddress";
 
-
-const SEPOLIA_CHAIN_ID = '11155111';
 const ContractContext = createContext();
 
-const ABI = contractAbi.abi;
+// Allowed networks
+const ALLOWED_CHAINS = ["31337", "11155111"];
 
-export const ContractProvider = ({children}) => {
+// Detect Core → Avalanche → MetaMask
+function getWalletSource() {
+  if (typeof window === "undefined") return null;
+  return window.core || window.avalanche || window.ethereum || null;
+}
+
+function ContractProvider({ children }) {
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
   const [networkError, setNetworkError] = useState(null);
-  const [walletAddress, setWalletAddress] = useState(null)
-  const [provider, setProvider] = useState(null)
-  const [signer, setSigner] = useState(null)
 
+  // 👇 THIS IS WHERE isConnecting MUST BE
+  const [isConnecting, setIsConnecting] = useState(false);
 
+  // CONNECT WALLET
+  async function connectWallet() {
+    if (isConnecting) return;
+    setIsConnecting(true);
 
-  const connectWallet = async () => {
-    if(!window.ethereum) return alert('Metamask not installed');
+    const wallet = getWalletSource();
+
+    if (!wallet) {
+      alert("Please install Core Wallet or MetaMask.");
+      setIsConnecting(false);
+      return;
+    }
 
     try {
-      const ethProvider = new ethers.providers.Web3Provider(window.ethereum);
-      await ethProvider.send('eth_requestAccounts', []);
-      const signer = ethProvider.getSigner()
-      const address = await signer.getAddress();
-      const network = await ethProvider.getNetwork()
+      const ethProvider = new ethers.providers.Web3Provider(wallet);
+      await wallet.request({ method: "eth_requestAccounts" });
 
-      if(network.chainId.toString() !== SEPOLIA_CHAIN_ID){
-        setNetworkError('Please switch to Sepolia network')
+      const signer = ethProvider.getSigner();
+      const address = await signer.getAddress();
+      const network = await ethProvider.getNetwork();
+
+      if (!ALLOWED_CHAINS.includes(network.chainId.toString())) {
+        setNetworkError("Wrong network. Use Sepolia or Localhost (31337).");
+        setIsConnecting(false);
         return;
       }
 
-      setWalletAddress(address)
-      setProvider(ethProvider)
-      setSigner(signer)
-      setNetworkError(null)
-
+      setProvider(ethProvider);
+      setSigner(signer);
+      setWalletAddress(address);
+      setNetworkError(null);
     } catch (err) {
-      console.error('Connection Failed:', err);
+      console.error("Wallet connection error:", err);
     }
+
+    setIsConnecting(false);
   }
 
-  const disconnectWallet = () => {
-    setWalletAddress('');
+  // DISCONNECT
+  function disconnectWallet() {
+    setWalletAddress(null);
     setProvider(null);
-    setSigner(null)
-    setNetworkError(null)
+    setSigner(null);
+    setNetworkError(null);
   }
 
+  // CONTRACT INSTANCE
   const contract = useMemo(() => {
-    if(!signer) return null;
-    return new Contract(contractAddress, ABI, signer);
-  }, [signer])
+    if (!signer) return null;
+    return new Contract(contractAddress, contractAbi.abi, signer);
+  }, [signer]);
 
+  // EVENT LISTENERS
   useEffect(() => {
-    const autoConnect = async () => {
-      if (window.ethereum) {
-          // const ethProvider = new ethers.providers.Web3Provider(window.ethereum);
-          // const accounts = await ethProvider.listAccounts()
+    const wallet = getWalletSource();
+    if (!wallet?.on) return;
 
-          // if (accounts.length > 0) {
-          //   const signer = ethProvider.getSigner()
-          //   const address = await signer.getAddress()
-          //   const network = await ethProvider.getNetwork()
+    const handleAccountsChanged = () => disconnectWallet();
+    const handleChainChanged = () => disconnectWallet();
 
-          //   if (network.chainId.toString() === SEPOLIA_CHAIN_ID) {
-          //     setWalletAddress(address)
-          //     setSigner(signer)
-          //     setProvider(ethProvider)
-          //     setNetworkError(null)
-          //   } else {
-          //     setNetworkError('Please switch to Sepolia network')
-          //   }
-          // }
-        }
-        window.ethereum.on('accountsChanged', () => window.location.reload())
-        window.ethereum.on('chainChanged', () => window.location.reload())
-      }
-    autoConnect()
-  }, [])
-  
+    wallet.on("accountsChanged", handleAccountsChanged);
+    wallet.on("chainChanged", handleChainChanged);
+
+    return () => {
+      wallet.removeListener?.("accountsChanged", handleAccountsChanged);
+      wallet.removeListener?.("chainChanged", handleChainChanged);
+    };
+  }, []);
+
   return (
-    <ContractContext.Provider 
+    <ContractContext.Provider
       value={{
         walletAddress,
-        contract,
         provider,
         signer,
+        contract,
         connectWallet,
         disconnectWallet,
         networkError,
-        isConnected: !!walletAddress
+        isConnected: !!walletAddress,
       }}
     >
       {children}
     </ContractContext.Provider>
-  )
+  );
 }
 
-export const useContract = () => useContext(ContractContext);
+function useContract() {
+  return useContext(ContractContext);
+}
+
+export { ContractProvider, useContract };

@@ -3,32 +3,68 @@ import DashboardCard from "../components/Card/DashboardCard";
 import useGetWills from "../hooks/useGetWills";
 import WillCardHeader from "../components/Card/WillCardHeader";
 import WillsCard from "../components/Card/WillsCard";
-
+import { ethers } from "ethers";
 
 const Dashboard = () => {
+  const { wills, willsCreated, totalBalance, hasWill, willInfo } = useGetWills();
 
-    const {wills, willsCreated, totalBalance, hasWill, willInfo} = useGetWills()
+  const formattedBalance = totalBalance
+    ? `${ethers.utils.formatEther(totalBalance)} ETH`
+    : "0 ETH";
 
   return (
     <DashboardLayout>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <DashboardCard title={'Wills Created'} value={willsCreated} />
-            <DashboardCard title={'Total Value Locked'} value={`${totalBalance.toFixed(5)} ETH`} />
-            <DashboardCard title={'My Will Status'} value={hasWill ? (willInfo.executed ? 'Executed' : 'Active'): "You don't have a Will"} />
-        </div>
-          <WillCardHeader>
-              {wills?.map((will, idx) => (
-                <WillsCard
-                    address={will.address}
-                    timeLeft={will.timeLeft > 0 ? will.timeLeft : 0}
-                    status={will.executed ? 'Executed' : will.isDead ? 'Dead - Can execute' : 'Alive'}
-                    balance={will.balance}
-                    lastPing={will.lastPing}
-                    deathTimeout={will.deathTimeout}
-                    cancelled={will.cancelled? 'Yes' : 'No'}
-                />
-              ))}
-          </WillCardHeader>
+      
+      {/* Header */}
+      <div className="mb-10">
+        <h1 className="text-4xl font-serif text-gold tracking-wide">
+          Dashboard Overview
+        </h1>
+        <p className="text-slate/80 mt-2 text-lg">
+          Summary of your will, assets, and estate activity.
+        </p>
+      </div>
+
+      {/* Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
+        <DashboardCard title="Wills Created" value={willsCreated} />
+
+        <DashboardCard title="Total Value Locked" value={formattedBalance} />
+
+        <DashboardCard
+          title="My Will Status"
+          value={
+            hasWill
+              ? willInfo.executed
+                ? "Executed"
+                : "Active"
+              : "No Will Created"
+          }
+        />
+      </div>
+
+      {/* Wills Section */}
+      <WillCardHeader>
+        {wills?.map((will, idx) => (
+          <WillsCard
+            key={idx}
+            address={will.address}
+            timeLeft={Math.max(will.timeLeft, 0)}
+            status={
+              will.executed
+                ? "Executed"
+                : will.isDead
+                ? "Ready to Execute"
+                : "Active"
+            }
+            balance={will.balance}
+            lastPing={will.lastPing}
+            deathTimeout={will.deathTimeout}
+            cancelled={will.cancelled ? "Yes" : "No"}
+          />
+        ))}
+      </WillCardHeader>
+
     </DashboardLayout>
   );
 };
