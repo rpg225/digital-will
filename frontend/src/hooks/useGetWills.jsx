@@ -23,6 +23,14 @@ const useGetWills = () => {
         }
 
         try {
+            // DEBUG: Check network and contract
+            const network = await provider.getNetwork();
+            console.log("Connected to network:", network.chainId);
+            
+            const code = await provider.getCode(contractAddress);
+            console.log("Contract exists:", code !== "0x");
+            console.log("Contract address:", contractAddress);
+            
             const filterInstance = new Contract(contractAddress, ABI, provider)
             const filter = filterInstance.filters.WillCreated()
             const events = await filterInstance.queryFilter(filter, 0, 'latest');
@@ -33,11 +41,12 @@ const useGetWills = () => {
                 amounts: event.args.amounts.map(a => ethers.utils.formatEther(a)),
                 balance: ethers.utils.formatEther(event.args.balance),
                 deathTimeout: event.args.deathTimeout.toString(),
-                blockNUmber: event.blockNumber
+                blockNumber: event.blockNumber
             }))
 
-            const totalEther = parsed.reduce((acc, cur) => parseFloat(acc) + parseFloat(cur.balance), ethers.BigNumber.from(0))
+            const totalEther = parsed.reduce((acc, cur) => parseFloat(acc) + parseFloat(cur.balance), 0)
 
+            // Check user's will
             const will = await contract.usersWill(walletAddress)
             const isCreated = will?.balance.gt(0)
 
@@ -47,21 +56,32 @@ const useGetWills = () => {
 
             const uniqueTestators = [...new Set(testators)]
 
-
             for (const addr of uniqueTestators) {
-                const wills = await contract.usersWill(addr)
-                const timeLeft = parseInt(wills.lastPing) + parseInt(wills.deathTimeout) - now;
+                try {
+                    const wills = await contract.usersWill(addr)
+                    
+                    // Check if will exists (has balance)
+                    if (wills.balance.gt(0)) {
+                        const timeLeft = parseInt(wills.lastPing) + parseInt(wills.deathTimeout) - now;
 
-                willList.push({
-                    address: addr,
-                    ...wills,
-                    timeLeft,
-                    isDead: timeLeft <= 0 && !wills.executed && !wills.cancelled
-                })
+                        willList.push({
+                            address: addr,
+                            balance: wills.balance,
+                            beneficiaries: wills.beneficiaries,
+                            amounts: wills.amounts,
+                            deathTimeout: wills.deathTimeout,
+                            lastPing: wills.lastPing,
+                            executed: wills.executed,
+                            cancelled: wills.cancelled,
+                            timeLeft,
+                            isDead: timeLeft <= 0 && !wills.executed && !wills.cancelled
+                        })
+                    }
+                } catch (err) {
+                    console.warn(`Failed to fetch will for ${addr}:`, err.message)
+                    // Continue to next address
+                }
             }
-
-            // console.log(willList)
-            // console.log(will[0].lastPing)
 
             setWills(willList)
             setHasWill(isCreated)
@@ -71,7 +91,7 @@ const useGetWills = () => {
 
         } catch (error) {
             const message = error?.error?.message || error?.message || error;
-            console.error(message);
+            console.error("Full error:", error);
             toast.error(message)
         }
     }

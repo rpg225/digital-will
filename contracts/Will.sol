@@ -35,15 +35,14 @@ contract CreateWill {
 
     function createWill(address[] memory _beneficiaries, uint256[] memory _amounts, uint256 _deathTimeout) external payable {
         require(usersWill[msg.sender].beneficiaries.length == 0 || usersWill[msg.sender].cancelled || usersWill[msg.sender].executed, "Will already exists");
-        require(msg.value >= 1 ether, "Minimum of 1 ether required to create will");
-        require(_beneficiaries.length == _amounts.length, "Bebeficiaries and amount must be of the same length");
-        require(_beneficiaries.length > 0 && _amounts.length <= 10, "1 to 10 beneficiaries allowed");
+        require(msg.value >= 0.01 ether, "Minimum of 0.01 ether required to create will"); // Changed from 1 ether
+        require(_beneficiaries.length == _amounts.length, "Beneficiaries and amount must be of the same length");
+        require(_beneficiaries.length > 0 && _beneficiaries.length <= 10, "1 to 10 beneficiaries allowed");
 
         uint256 total = 0;
         for (uint i = 0; i < _beneficiaries.length; i++) {
             require(_beneficiaries[i] != address(0), "Beneficiary address must be a valid address");
-            require(_amounts[i] > 0 && _amounts[i] < 100 ether, "Invalid mount");
-
+            require(_amounts[i] > 0, "Amount must be greater than 0"); // Removed max limit
             total += _amounts[i];
         }
 

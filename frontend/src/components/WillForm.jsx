@@ -13,8 +13,8 @@ import ButtonText from "./Core/Buttons/ButtonText";
 const WillForm = ({ onCreateWill }) => {
   const [step, setStep] = useState(1);
 
-  const [beneficiaries, setBeneficiaries] = useState([]);
-  const [amounts, setAmounts] = useState([]);
+  const [beneficiaries, setBeneficiaries] = useState([""]);
+  const [amounts, setAmounts] = useState([""]);
 
   const [deathTimeout, setDeathTimeout] = useState("");
   const [etherValue, setEtherValue] = useState("");
@@ -28,7 +28,7 @@ const WillForm = ({ onCreateWill }) => {
   const handleChange = (setter, i, value) => {
     setter((prev) => {
       const updated = [...prev];
-      updated[i] = value.trim(); // ENS-safe
+      updated[i] = value.trim();
       return updated;
     });
   };
@@ -45,11 +45,79 @@ const WillForm = ({ onCreateWill }) => {
     setAmounts((prev) => prev.filter((_, idx) => idx !== i));
   };
 
-  const nextStep = () => setStep((s) => s + 1);
+  const nextStep = () => {
+    // Validate before moving to next step
+    if (step === 1) {
+      const cleanedBeneficiaries = beneficiaries.filter((b) => b && b.trim() !== "");
+      const cleanedAmounts = amounts.filter((a) => a && a.trim() !== "");
+
+      if (cleanedBeneficiaries.length === 0) {
+        toast.error("Please enter at least one beneficiary.");
+        return;
+      }
+
+      if (cleanedBeneficiaries.length !== cleanedAmounts.length) {
+        toast.error("Each beneficiary must have an associated amount.");
+        return;
+      }
+
+      // Validate addresses
+      for (let i = 0; i < cleanedBeneficiaries.length; i++) {
+        const addr = cleanedBeneficiaries[i];
+        
+        // Check if it's a valid Ethereum address
+        if (!addr || addr === "" || !ethers.utils.isAddress(addr)) {
+          toast.error(`Invalid Ethereum address at row ${i + 1}. Please enter a valid address starting with 0x`);
+          return;
+        }
+
+        // Additional check: make sure it's not the zero address
+        if (addr.toLowerCase() === "0x0000000000000000000000000000000000000000") {
+          toast.error(`Cannot use zero address (0x0...0) at row ${i + 1}`);
+          return;
+        }
+      }
+
+      // Validate amounts
+      for (let i = 0; i < cleanedAmounts.length; i++) {
+        const amt = cleanedAmounts[i];
+        if (!amt || amt === "" || isNaN(amt) || Number(amt) <= 0) {
+          toast.error(`Invalid ETH amount at row ${i + 1}. Must be greater than 0`);
+          return;
+        }
+      }
+    }
+
+    if (step === 2) {
+      if (!deathTimeout || deathTimeout === "" || isNaN(deathTimeout) || Number(deathTimeout) <= 0) {
+        toast.error("Death timeout must be a valid number greater than 0.");
+        return;
+      }
+    }
+
+    if (step === 3) {
+      if (!etherValue || etherValue === "" || isNaN(etherValue) || Number(etherValue) <= 0) {
+        toast.error("Total ETH must be a valid positive number.");
+        return;
+      }
+
+      // Check if total amount matches sum of beneficiary amounts
+      const cleanedAmounts = amounts.filter((a) => a && a.trim() !== "");
+      const sumOfAmounts = cleanedAmounts.reduce((sum, amt) => sum + Number(amt), 0);
+      
+      if (Number(etherValue) < sumOfAmounts) {
+        toast.error(`Total ETH (${etherValue}) must be at least the sum of all beneficiary amounts (${sumOfAmounts})`);
+        return;
+      }
+    }
+
+    setStep((s) => s + 1);
+  };
+
   const prevStep = () => setStep((s) => s - 1);
 
   // --------------------------
-  // Submit Handler (ENS-safe)
+  // Submit Handler
   // --------------------------
   const handleSubmit = async () => {
     if (!contract || !walletAddress) {
@@ -57,46 +125,11 @@ const WillForm = ({ onCreateWill }) => {
       return;
     }
 
-    const cleanedBeneficiaries = beneficiaries.filter(
-      (b) => b && b.trim() !== ""
-    );
+    const cleanedBeneficiaries = beneficiaries.filter((b) => b && b.trim() !== "");
     const cleanedAmounts = amounts.filter((a) => a && a.trim() !== "");
 
     if (cleanedBeneficiaries.length === 0) {
       toast.error("Please enter at least one beneficiary.");
-      return;
-    }
-
-    if (cleanedBeneficiaries.length !== cleanedAmounts.length) {
-      toast.error("Each beneficiary must have an associated amount.");
-      return;
-    }
-
-    // Validate addresses
-    for (let i = 0; i < cleanedBeneficiaries.length; i++) {
-      if (!ethers.utils.isAddress(cleanedBeneficiaries[i])) {
-        toast.error(`Invalid Ethereum address at row ${i + 1}`);
-        return;
-      }
-    }
-
-    // Validate amounts
-    for (let i = 0; i < cleanedAmounts.length; i++) {
-      if (isNaN(cleanedAmounts[i]) || Number(cleanedAmounts[i]) <= 0) {
-        toast.error(`Invalid ETH amount at row ${i + 1}`);
-        return;
-      }
-    }
-
-    // Validate timeout
-    if (!deathTimeout || isNaN(deathTimeout) || Number(deathTimeout) <= 0) {
-      toast.error("Death timeout must be a valid number.");
-      return;
-    }
-
-    // Validate funding
-    if (!etherValue || isNaN(etherValue) || Number(etherValue) <= 0) {
-      toast.error("Total ETH must be a valid positive number.");
       return;
     }
 
@@ -116,14 +149,16 @@ const WillForm = ({ onCreateWill }) => {
       onCreateWill?.();
 
       // reset
-      setBeneficiaries([]);
-      setAmounts([]);
+      setBeneficiaries([""]);
+      setAmounts([""]);
       setDeathTimeout("");
       setEtherValue("");
+      setStep(1);
 
     } catch (err) {
       console.error(err);
-      toast.error(err?.error?.message || err?.message || "Transaction failed.");
+      const errorMessage = err?.error?.data?.message || err?.error?.message || err?.message || "Transaction failed.";
+      toast.error(errorMessage);
     }
 
     setLoading(false);
@@ -162,6 +197,10 @@ const WillForm = ({ onCreateWill }) => {
                 1. Beneficiaries & Allocations
               </h2>
 
+              <p className="text-sm text-slate/60 mb-4">
+                Enter valid Ethereum addresses (starting with 0x) and the amount each beneficiary should receive.
+              </p>
+
               {beneficiaries.map((b, i) => (
                 <div key={i} className="flex gap-3 items-center mb-3">
                   <TextInput
@@ -175,6 +214,8 @@ const WillForm = ({ onCreateWill }) => {
 
                   <TextInput
                     type="number"
+                    step="0.01"
+                    min="0"
                     placeholder="ETH"
                     className="w-32"
                     value={amounts[i]}
@@ -220,8 +261,13 @@ const WillForm = ({ onCreateWill }) => {
                 2. Inactivity Timer
               </h2>
 
+              <p className="text-sm text-slate/60 mb-4">
+                Set the inactivity period (in seconds). If you don't "ping" within this time, your will becomes executable.
+              </p>
+
               <TextInput
-                placeholder="Death Timeout (seconds)"
+                type="number"
+                placeholder="Death Timeout (seconds, e.g., 2592000 for 30 days)"
                 value={deathTimeout}
                 onChange={(e) => setDeathTimeout(e.target.value)}
                 className="w-full"
@@ -241,12 +287,23 @@ const WillForm = ({ onCreateWill }) => {
                 3. Deposit ETH
               </h2>
 
+              <p className="text-sm text-slate/60 mb-4">
+                Enter the total amount of ETH to deposit into your will. This should equal or exceed the sum of all beneficiary amounts.
+              </p>
+
               <TextInput
+                type="number"
+                step="0.01"
+                min="0"
                 placeholder="Total ETH to deposit"
                 value={etherValue}
                 onChange={(e) => setEtherValue(e.target.value)}
                 className="w-full"
               />
+
+              <div className="text-sm text-slate/60 mt-2">
+                Sum of beneficiary amounts: {amounts.filter(a => a && a.trim()).reduce((sum, amt) => sum + Number(amt || 0), 0).toFixed(4)} ETH
+              </div>
 
               <div className="flex justify-between mt-6">
                 <Button onClick={prevStep}><ButtonText>Back</ButtonText></Button>
@@ -267,14 +324,14 @@ const WillForm = ({ onCreateWill }) => {
 
                 {beneficiaries.map((b, i) =>
                   b?.trim() ? (
-                    <p key={i} className="text-slate/80">
+                    <p key={i} className="text-slate/80 break-all">
                       {b} — <span className="text-white">{amounts[i]} ETH</span>
                     </p>
                   ) : null
                 )}
 
                 <h3 className="font-serif text-gold text-lg mt-4">Timeout</h3>
-                <p className="text-slate/80">{deathTimeout} seconds</p>
+                <p className="text-slate/80">{deathTimeout} seconds ({(Number(deathTimeout) / 86400).toFixed(1)} days)</p>
 
                 <h3 className="font-serif text-gold text-lg mt-4">Total Funding</h3>
                 <p className="text-slate/80">{etherValue} ETH</p>
