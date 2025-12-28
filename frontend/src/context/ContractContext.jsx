@@ -6,7 +6,7 @@ import { contractAddress } from "../utils/contractAddress";
 const ContractContext = createContext();
 
 // Allowed networks
-const ALLOWED_CHAINS = ["31337", "11155111"];
+const ALLOWED_CHAINS = ["31337", "11155111"]; // Hardhat Local, Sepolia
 
 // Detect Core → Avalanche → MetaMask
 function getWalletSource() {
@@ -19,8 +19,6 @@ function ContractProvider({ children }) {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [networkError, setNetworkError] = useState(null);
-
-  // 👇 THIS IS WHERE isConnecting MUST BE
   const [isConnecting, setIsConnecting] = useState(false);
 
   // CONNECT WALLET
@@ -44,6 +42,9 @@ function ContractProvider({ children }) {
       const address = await signer.getAddress();
       const network = await ethProvider.getNetwork();
 
+      console.log("🔗 Connected to network:", network.chainId);
+      console.log("👛 Wallet address:", address);
+
       if (!ALLOWED_CHAINS.includes(network.chainId.toString())) {
         setNetworkError("Wrong network. Use Sepolia or Localhost (31337).");
         setIsConnecting(false);
@@ -54,8 +55,11 @@ function ContractProvider({ children }) {
       setSigner(signer);
       setWalletAddress(address);
       setNetworkError(null);
+      
+      console.log("✅ Wallet connected successfully");
     } catch (err) {
-      console.error("Wallet connection error:", err);
+      console.error("❌ Wallet connection error:", err);
+      alert("Failed to connect wallet. Please try again.");
     }
 
     setIsConnecting(false);
@@ -67,6 +71,7 @@ function ContractProvider({ children }) {
     setProvider(null);
     setSigner(null);
     setNetworkError(null);
+    console.log("🔌 Wallet disconnected");
   }
 
   // CONTRACT INSTANCE
@@ -75,13 +80,71 @@ function ContractProvider({ children }) {
     return new Contract(contractAddress, contractAbi.abi, signer);
   }, [signer]);
 
+  // AUTO-CONNECT IF PREVIOUSLY CONNECTED
+  useEffect(() => {
+    let mounted = true;
+
+    const checkConnection = async () => {
+      if (!mounted) return;
+
+      const wallet = getWalletSource();
+      if (!wallet) return;
+
+      try {
+        const accounts = await wallet.request({ method: "eth_accounts" });
+        if (accounts.length > 0 && mounted) {
+          console.log("🔄 Auto-connecting to previously connected wallet...");
+          
+          // Don't call connectWallet() - just set up the connection directly
+          const ethProvider = new ethers.providers.Web3Provider(wallet);
+          const signer = ethProvider.getSigner();
+          const address = await signer.getAddress();
+          const network = await ethProvider.getNetwork();
+
+          console.log("🔗 Auto-connected to network:", network.chainId);
+
+          if (!ALLOWED_CHAINS.includes(network.chainId.toString())) {
+            setNetworkError("Wrong network. Use Sepolia or Localhost (31337).");
+            return;
+          }
+
+          setProvider(ethProvider);
+          setSigner(signer);
+          setWalletAddress(address);
+          setNetworkError(null);
+        }
+      } catch (err) {
+        console.error("Auto-connect error:", err);
+      }
+    };
+
+    checkConnection();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // EVENT LISTENERS
   useEffect(() => {
     const wallet = getWalletSource();
     if (!wallet?.on) return;
 
-    const handleAccountsChanged = () => disconnectWallet();
-    const handleChainChanged = () => disconnectWallet();
+    const handleAccountsChanged = (accounts) => {
+      console.log("👤 Accounts changed:", accounts);
+      if (accounts.length === 0) {
+        disconnectWallet();
+      } else {
+        // Reconnect with new account
+        connectWallet();
+      }
+    };
+
+    const handleChainChanged = (chainId) => {
+      console.log("⛓️ Chain changed:", chainId);
+      // Reload the page to reset state
+      window.location.reload();
+    };
 
     wallet.on("accountsChanged", handleAccountsChanged);
     wallet.on("chainChanged", handleChainChanged);
@@ -103,6 +166,7 @@ function ContractProvider({ children }) {
         disconnectWallet,
         networkError,
         isConnected: !!walletAddress,
+        isConnecting, // ✅ NOW INCLUDED!
       }}
     >
       {children}

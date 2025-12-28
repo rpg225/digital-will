@@ -14,14 +14,24 @@ const statusColors = {
 
 const WillsCard = ({ deathTimeout, status, address, balance, lastPing, timeLeft, cancelled }) => {
 
-  const formattedBalance = parseFloat(
-    ethers.utils.formatEther(balance.toString())
-  ).toFixed(5);
+  // Convert BigNumber values to readable formats
+  const formattedBalance = ethers.utils.formatEther(
+    ethers.BigNumber.isBigNumber(balance) ? balance : ethers.BigNumber.from(balance || 0)
+  );
 
-  const resolvedStatus =
-    cancelled === "Yes"
-      ? "Cancelled"
-      : status;
+  const deathTimeoutSeconds = ethers.BigNumber.isBigNumber(deathTimeout) 
+    ? deathTimeout.toString() 
+    : deathTimeout?.toString() || "0";
+
+  const lastPingTimestamp = ethers.BigNumber.isBigNumber(lastPing)
+    ? lastPing.toString()
+    : lastPing?.toString() || "0";
+
+  const isCancelled = typeof cancelled === 'boolean' 
+    ? cancelled 
+    : cancelled === true || cancelled === "Yes";
+
+  const resolvedStatus = isCancelled ? "Cancelled" : status;
 
   return (
     <motion.div
@@ -64,13 +74,16 @@ const WillsCard = ({ deathTimeout, status, address, balance, lastPing, timeLeft,
 
         <div>
           <p className="text-gold font-semibold">Balance</p>
-          <p className="text-white">{formattedBalance} ETH</p>
+          <p className="text-white">{parseFloat(formattedBalance).toFixed(4)} ETH</p>
         </div>
 
         <div>
           <p className="text-gold font-semibold">Time Left</p>
           {timeLeft > 0 ? (
-            <CountdownTimer lastPing={lastPing} deathTimeout={deathTimeout} />
+            <CountdownTimer 
+              lastPing={parseInt(lastPingTimestamp)} 
+              deathTimeout={parseInt(deathTimeoutSeconds)} 
+            />
           ) : (
             <p className="text-red-300">Expired</p>
           )}
@@ -78,17 +91,21 @@ const WillsCard = ({ deathTimeout, status, address, balance, lastPing, timeLeft,
 
         <div>
           <p className="text-gold font-semibold">Death Timeout</p>
-          <p className="text-white">{deathTimeout} sec</p>
+          <p className="text-white">
+            {deathTimeoutSeconds} sec ({(parseInt(deathTimeoutSeconds) / 86400).toFixed(1)} days)
+          </p>
         </div>
 
         <div>
           <p className="text-gold font-semibold">Last Ping</p>
-          <p className="text-white">{lastPing}</p>
+          <p className="text-white">
+            {new Date(parseInt(lastPingTimestamp) * 1000).toLocaleString()}
+          </p>
         </div>
 
         <div>
           <p className="text-gold font-semibold">Cancelled</p>
-          <p className="text-white">{cancelled}</p>
+          <p className="text-white">{isCancelled ? "Yes" : "No"}</p>
         </div>
 
       </div>
