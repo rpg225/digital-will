@@ -1,144 +1,65 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { useContract } from '../context/ContractContext'
-import { toast } from 'react-toastify'
-import { Contract, ethers } from 'ethers'
-import { contractAddress } from '../utils/contractAddress'
-import contractAbi from '../abi/CreateWill.json'
-
-const ABI = contractAbi.abi
-const ZERO = ethers.BigNumber.from(0)
-
-// 🔒 HARDENED NORMALIZER (FINAL FORM)
-const normalizeWill = (w) => {
-  const beneficiaries = Array.isArray(w?.[0]) ? w[0] : []
-  const rawAmounts = w?.[1]
-
-  const amounts = Array.isArray(rawAmounts)
-    ? rawAmounts
-    : rawAmounts
-    ? [rawAmounts]
-    : []
-
-  return {
-    beneficiaries,
-    amounts,
-    executed: Boolean(w?.[2]),
-    lastPing: Number(w?.[3] ?? 0),
-    cancelled: Boolean(w?.[4]),
-    balance: ethers.BigNumber.isBigNumber(w?.[5]) ? w[5] : ZERO,
-    deathTimeout: Number(w?.[6] ?? 0),
-  }
-}
+import { useCallback, useEffect, useState } from "react"
+import { ethers } from "ethers"
+import { useContract } from "../context/ContractContext"
 
 const useGetWills = () => {
+  const { contract, walletAddress, isConnected } = useContract()
+
   const [wills, setWills] = useState([])
-  const [willInfo, setWillInfo] = useState(null)
-  const [hasWill, setHasWill] = useState(false)
-  const [totalBalance, setTotalBalance] = useState(0)
-  const [willsCreated, setWillsCreated] = useState(0)
+  const [activeWill, setActiveWill] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  const { contract, provider, walletAddress, isConnected } = useContract()
-  const isFetching = useRef(false)
+  const fetchWills = useCallback(async () => {
+    if (!contract || !walletAddress) return
 
-  const fetchAllWills = useCallback(async () => {
-    if (!contract || !provider || !walletAddress || isFetching.current) return
-    isFetching.current = true
     setLoading(true)
 
     try {
-      /* ---------- EVENTS ---------- */
-      const filterInstance = new Contract(contractAddress, ABI, provider)
-      const events = await filterInstance.queryFilter(
-        filterInstance.filters.WillCreated(),
-        0,
-        'latest'
-      )
+      // 1️⃣ get all will IDs for this user
+      const ids = await contract.getMyWillIds()
 
-      setWillsCreated(events.length)
+      const fetched = []
 
-      setTotalBalance(
-        events.reduce(
-          (acc, e) =>
-            acc + parseFloat(ethers.utils.formatEther(e.args.balance)),
-          0
-        )
-      )
+      for (const id of ids) {
+        const will = await contract.getWillById(walletAddress, id)
 
-      /* ---------- USER WILL ---------- */
-      const userRaw = await contract.usersWill(walletAddress)
-      const userWill = normalizeWill(userRaw)
-
-      setHasWill(
-        userWill.balance.gt(0) &&
-        !userWill.executed &&
-        !userWill.cancelled
-      )
-      setWillInfo(userWill)
-
-      /* ---------- ALL WILLS ---------- */
-      const testators = await contract.getAllTestators()
-      const uniqueTestators = [...new Set(testators)]
-      const now = Math.floor(Date.now() / 1000)
-
-      const willList = []
-
-      for (const addr of uniqueTestators) {
-        try {
-          const raw = await contract.usersWill(addr)
-          const will = normalizeWill(raw)
-
-          const timeLeft =
-            will.lastPing + will.deathTimeout - now
-
-          willList.push({
-            address: addr,
-            balanceEth: ethers.utils.formatEther(will.balance),
-            beneficiaries: will.beneficiaries,
-            amounts: will.amounts.map((a) =>
-              ethers.utils.formatEther(a)
-            ),
-            executed: will.executed,
-            cancelled: will.cancelled,
-            lastPing: will.lastPing,
-            deathTimeout: will.deathTimeout,
-            timeLeft,
-            status: will.executed
-              ? 'EXECUTED'
-              : will.cancelled
-              ? 'CANCELLED'
-              : will.balance.gt(0)
-              ? 'ACTIVE'
-              : 'EMPTY',
-          })
-        } catch (e) {
-          console.error('Skipping broken will:', addr, e)
-        }
+        fetched.push({
+          id: Number(id),
+          beneficiaries: will.beneficiaries,
+          amounts: will.amounts.map(a =>
+            ethers.utils.formatEther(a)
+          ),
+          balance: ethers.utils.formatEther(will.balance),
+          createdAt: Number(will.createdAt),
+          lastPing: Number(will.lastPing),
+          deathTimeout: Number(will.deathTimeout),
+          status: Object.keys(will).includes("status")
+            ? Number(will.status)
+            : null,
+        })
       }
 
-      setWills(willList)
-      console.log('✅ Wills loaded:', willList.length)
+      setWills(fetched)
+
+      // 2️⃣ find active will (status === ACTIVE = 1)
+      const active = fetched.find(w => w.status === 1)
+      setActiveWill(active ?? null)
     } catch (err) {
-      console.error('❌ Fetch error:', err)
-      toast.error('Failed to load wills')
+      console.error("❌ Failed to fetch wills:", err)
     } finally {
       setLoading(false)
-      isFetching.current = false
     }
-  }, [contract, provider, walletAddress])
+  }, [contract, walletAddress])
 
   useEffect(() => {
-    if (isConnected) fetchAllWills()
-  }, [isConnected, fetchAllWills])
+    if (isConnected) fetchWills()
+  }, [isConnected, fetchWills])
 
   return {
-    fetchAllWills,
     wills,
-    willsCreated,
-    totalBalance,
-    hasWill,
-    willInfo,
+    activeWill,
     loading,
+    refresh: fetchWills,
   }
 }
 

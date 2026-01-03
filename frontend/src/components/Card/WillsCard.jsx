@@ -1,5 +1,6 @@
 import React from "react";
 import TruncatedAddress from "../TruncatedAddress";
+import { useContract } from "../../context/ContractContext";
 import CountdownTimer from "../../hooks/CountdownTimer";
 import { ethers } from "ethers";
 import { motion } from "framer-motion";
@@ -14,10 +15,12 @@ const statusColors = {
 
 const WillsCard = ({ deathTimeout, status, address, balance, lastPing, timeLeft, cancelled }) => {
 
-  // Convert BigNumber values to readable formats
-  const formattedBalance = ethers.utils.formatEther(
-    ethers.BigNumber.isBigNumber(balance) ? balance : ethers.BigNumber.from(balance || 0)
-  );
+  // Convert BigNumber values to readable 
+  
+  const { walletAddress } = useContract();
+  
+  const formattedBalance = Number(balance || 0);
+
 
   const deathTimeoutSeconds = ethers.BigNumber.isBigNumber(deathTimeout) 
     ? deathTimeout.toString() 

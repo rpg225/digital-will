@@ -1,6 +1,7 @@
 
-const truncate = (address, start = 7, end=-5) => {
-    return address.slice(0, start) + '...' + address.slice(end);
+const truncate = (addr) => {
+    if (!addr) return ""
+  return addr.slice(0, 6) + "..." + addr.slice(-4)
 }
 
 export default truncate

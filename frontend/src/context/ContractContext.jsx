@@ -80,6 +80,14 @@ function ContractProvider({ children }) {
     return new Contract(contractAddress, contractAbi.abi, signer);
   }, [signer]);
 
+  // 🔍 DEBUG: expose contract to window for console testing
+  useEffect(() => {
+    if (contract) {
+      console.log("🧪 Exposing contract to window.__contract");
+    }
+  }, [contract]);
+
+
   // AUTO-CONNECT IF PREVIOUSLY CONNECTED
   useEffect(() => {
     let mounted = true;
