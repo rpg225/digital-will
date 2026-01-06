@@ -18,13 +18,14 @@ contract CreateWill {
         uint256 lastPing;
         uint256 deathTimeout;
         uint256 balance;
+        uint256 totalDeposited;
         Status status;
     }
 
-    // ✅ NEW: all wills per testator (history)
-    mapping(address => Will[]) private willsByTestator;
+    // ✅ single source of truth for history
+    mapping(address => Will[]) public willHistory;
 
-    // ✅ NEW: 1-based active will id (0 means none)
+    // ✅ 1-based active will id (0 = none)
     mapping(address => uint256) public activeWillId;
 
     // keep testators list, but prevent duplicates
@@ -46,13 +47,13 @@ contract CreateWill {
     modifier onlyActiveTestator() {
         uint256 id = activeWillId[msg.sender];
         require(id != 0, "No active will");
-        Will storage w = willsByTestator[msg.sender][id - 1];
+        Will storage w = willHistory[msg.sender][id - 1];
         require(w.status == Status.ACTIVE, "No active will");
         _;
     }
 
     modifier validWillId(address testator, uint256 willId) {
-        require(willId > 0 && willId <= willsByTestator[testator].length, "Invalid willId");
+        require(willId > 0 && willId <= willHistory[testator].length, "Invalid willId");
         _;
     }
 
@@ -68,7 +69,7 @@ contract CreateWill {
         // enforce one ACTIVE will at a time (good UX)
         uint256 current = activeWillId[msg.sender];
         if (current != 0) {
-            Will storage prev = willsByTestator[msg.sender][current - 1];
+            Will storage prev = willHistory[msg.sender][current - 1];
             require(prev.status != Status.ACTIVE, "Will already exists");
         }
 
@@ -91,11 +92,12 @@ contract CreateWill {
             lastPing: block.timestamp,
             deathTimeout: _deathTimeout,
             balance: msg.value,
+            totalDeposited: msg.value,
             status: Status.ACTIVE
         });
 
-        willsByTestator[msg.sender].push(w);
-        willId = willsByTestator[msg.sender].length; // 1-based
+        willHistory[msg.sender].push(w);
+        willId = willHistory[msg.sender].length; // 1-based id
         activeWillId[msg.sender] = willId;
 
         if (!isTestator[msg.sender]) {
@@ -106,25 +108,22 @@ contract CreateWill {
         emit WillCreated(msg.sender, willId, _beneficiaries, _amounts, msg.value, _deathTimeout);
     }
 
-    // ✅ Backward-ish: ping active will (no args)
+    // ✅ ping active will (no args)
     function ping() external onlyActiveTestator {
         uint256 id = activeWillId[msg.sender];
-        Will storage w = willsByTestator[msg.sender][id - 1];
-
-        // FIX: must be AND logic (status check already enforces this)
+        Will storage w = willHistory[msg.sender][id - 1];
         w.lastPing = block.timestamp;
-
         emit Ping(msg.sender, id);
     }
 
-    // ✅ Execute the active will for a testator (keeps your original signature)
+    // ✅ execute active will for a testator (keeps your original signature)
     function executeWill(address _testator) external {
         uint256 id = activeWillId[_testator];
         require(id != 0, "No active will");
         _executeWill(_testator, id);
     }
 
-    // ✅ Execute a specific will (new, clean UX)
+    // ✅ execute a specific will (new, clean UX)
     function executeWillById(address _testator, uint256 willId)
         external
         validWillId(_testator, willId)
@@ -132,8 +131,11 @@ contract CreateWill {
         _executeWill(_testator, willId);
     }
 
-    function _executeWill(address _testator, uint256 willId) internal validWillId(_testator, willId) {
-        Will storage w = willsByTestator[_testator][willId - 1];
+    function _executeWill(address _testator, uint256 willId)
+        internal
+        validWillId(_testator, willId)
+    {
+        Will storage w = willHistory[_testator][willId - 1];
 
         require(w.status == Status.ACTIVE, "Will not active");
         require(w.balance != 0, "Will doesn't exist");
@@ -144,6 +146,7 @@ contract CreateWill {
             require(success, "Transfer to beneficiary failed");
         }
 
+        // ✅ keep beneficiaries/amounts for history display
         w.status = Status.EXECUTED;
         w.balance = 0;
 
@@ -154,22 +157,27 @@ contract CreateWill {
         emit WillExecuted(_testator, willId);
     }
 
-    // ✅ Cancel active will (keeps old UX)
+    // ✅ cancel active will (keeps old UX)
     function cancelWill() external onlyActiveTestator {
         uint256 id = activeWillId[msg.sender];
         _cancelWill(msg.sender, id);
     }
 
-    // ✅ Cancel specific will
+    // ✅ cancel specific will
     function cancelWillById(uint256 willId) external validWillId(msg.sender, willId) {
         _cancelWill(msg.sender, willId);
     }
 
-    function _cancelWill(address testator, uint256 willId) internal validWillId(testator, willId) {
-        Will storage w = willsByTestator[testator][willId - 1];
+    function _cancelWill(address testator, uint256 willId)
+        internal
+        validWillId(testator, willId)
+    {
+        Will storage w = willHistory[testator][willId - 1];
         require(w.status == Status.ACTIVE, "Will not active");
 
         uint256 refund = w.balance;
+
+        // ✅ keep beneficiaries/amounts for history display
         w.status = Status.CANCELLED;
         w.balance = 0;
 
@@ -188,7 +196,7 @@ contract CreateWill {
     // ---------- Frontend-friendly getters ----------
 
     function getWillCount(address testator) external view returns (uint256) {
-        return willsByTestator[testator].length;
+        return willHistory[testator].length;
     }
 
     function getWillById(address testator, uint256 willId)
@@ -197,19 +205,19 @@ contract CreateWill {
         validWillId(testator, willId)
         returns (Will memory)
     {
-        return willsByTestator[testator][willId - 1];
+        return willHistory[testator][willId - 1];
     }
 
     // Returns 1..N ids (useful to render a list without scanning events)
     function getMyWillIds() external view returns (uint256[] memory ids) {
-        uint256 n = willsByTestator[msg.sender].length;
+        uint256 n = willHistory[msg.sender].length;
         ids = new uint256[](n);
         for (uint256 i = 0; i < n; i++) {
             ids[i] = i + 1;
         }
     }
 
-    function getAllTestators() external view returns(address[] memory) {
+    function getAllTestators() external view returns (address[] memory) {
         return testators;
     }
 
