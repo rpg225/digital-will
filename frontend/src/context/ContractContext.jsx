@@ -6,7 +6,7 @@ import { contractAddress } from "../utils/contractAddress";
 const ContractContext = createContext();
 
 // Allowed networks
-const ALLOWED_CHAINS = ["31337", "11155111"]; // Hardhat Local, Sepolia
+const ALLOWED_CHAINS = ["31337", "11155111"];
 
 // Detect Core → Avalanche → MetaMask
 function getWalletSource() {
@@ -19,6 +19,8 @@ function ContractProvider({ children }) {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [networkError, setNetworkError] = useState(null);
+
+  // 👇 THIS IS WHERE isConnecting MUST BE
   const [isConnecting, setIsConnecting] = useState(false);
 
   // CONNECT WALLET
@@ -42,9 +44,6 @@ function ContractProvider({ children }) {
       const address = await signer.getAddress();
       const network = await ethProvider.getNetwork();
 
-      console.log("🔗 Connected to network:", network.chainId);
-      console.log("👛 Wallet address:", address);
-
       if (!ALLOWED_CHAINS.includes(network.chainId.toString())) {
         setNetworkError("Wrong network. Use Sepolia or Localhost (31337).");
         setIsConnecting(false);
@@ -55,11 +54,8 @@ function ContractProvider({ children }) {
       setSigner(signer);
       setWalletAddress(address);
       setNetworkError(null);
-      
-      console.log("✅ Wallet connected successfully");
     } catch (err) {
-      console.error("❌ Wallet connection error:", err);
-      alert("Failed to connect wallet. Please try again.");
+      console.error("Wallet connection error:", err);
     }
 
     setIsConnecting(false);
@@ -71,7 +67,6 @@ function ContractProvider({ children }) {
     setProvider(null);
     setSigner(null);
     setNetworkError(null);
-    console.log("🔌 Wallet disconnected");
   }
 
   // CONTRACT INSTANCE
@@ -80,6 +75,7 @@ function ContractProvider({ children }) {
     return new Contract(contractAddress, contractAbi.abi, signer);
   }, [signer]);
 
+<<<<<<< HEAD
   // 🔍 DEBUG: expose contract to window for console testing
   useEffect(() => {
     if (contract) {
@@ -133,26 +129,15 @@ function ContractProvider({ children }) {
     };
   }, []);
 
+=======
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
   // EVENT LISTENERS
   useEffect(() => {
     const wallet = getWalletSource();
     if (!wallet?.on) return;
 
-    const handleAccountsChanged = (accounts) => {
-      console.log("👤 Accounts changed:", accounts);
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else {
-        // Reconnect with new account
-        connectWallet();
-      }
-    };
-
-    const handleChainChanged = (chainId) => {
-      console.log("⛓️ Chain changed:", chainId);
-      // Reload the page to reset state
-      window.location.reload();
-    };
+    const handleAccountsChanged = () => disconnectWallet();
+    const handleChainChanged = () => disconnectWallet();
 
     wallet.on("accountsChanged", handleAccountsChanged);
     wallet.on("chainChanged", handleChainChanged);
@@ -174,7 +159,6 @@ function ContractProvider({ children }) {
         disconnectWallet,
         networkError,
         isConnected: !!walletAddress,
-        isConnecting, // ✅ NOW INCLUDED!
       }}
     >
       {children}

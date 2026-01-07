@@ -22,6 +22,7 @@ const toEth = (v) => {
   return Number(v); // already ETH string/number
 };
 
+<<<<<<< HEAD
 const WillsCard = ({
   deathTimeout,
   status,
@@ -54,6 +55,16 @@ const WillsCard = ({
   );
 
   const resolvedStatus = cancelled ? "Cancelled" : status;
+=======
+  const formattedBalance = parseFloat(
+    ethers.utils.formatEther(balance.toString())
+  ).toFixed(5);
+
+  const resolvedStatus =
+    cancelled === "Yes"
+      ? "Cancelled"
+      : status;
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
 
   return (
     <motion.div
@@ -87,6 +98,7 @@ const WillsCard = ({
 
         <div>
           <p className="text-gold font-semibold">Balance</p>
+<<<<<<< HEAD
           <p className="text-white">{balanceEth.toFixed(4)} ETH</p>
           
           {Number(balanceEth) === 0 && Number(totalDepositedEth) > 0 && (
@@ -96,6 +108,9 @@ const WillsCard = ({
 
 )}
 
+=======
+          <p className="text-white">{formattedBalance} ETH</p>
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
         </div>
 
         {beneficiaries.length > 0 && (
@@ -115,10 +130,14 @@ const WillsCard = ({
         <div>
           <p className="text-gold font-semibold">Time Left</p>
           {timeLeft > 0 ? (
+<<<<<<< HEAD
             <CountdownTimer
               lastPing={lastPingTimestamp}
               deathTimeout={deathTimeoutSeconds}
             />
+=======
+            <CountdownTimer lastPing={lastPing} deathTimeout={deathTimeout} />
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
           ) : (
             <p className="text-red-300">Expired</p>
           )}
@@ -126,21 +145,33 @@ const WillsCard = ({
 
         <div>
           <p className="text-gold font-semibold">Death Timeout</p>
+<<<<<<< HEAD
           <p className="text-white">
             {deathTimeoutSeconds}s ({(deathTimeoutSeconds / 86400).toFixed(1)} days)
           </p>
+=======
+          <p className="text-white">{deathTimeout} sec</p>
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
         </div>
 
         <div>
           <p className="text-gold font-semibold">Last Ping</p>
+<<<<<<< HEAD
           <p className="text-white">
             {new Date(lastPingTimestamp * 1000).toLocaleString()}
           </p>
+=======
+          <p className="text-white">{lastPing}</p>
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
         </div>
 
         <div>
           <p className="text-gold font-semibold">Cancelled</p>
+<<<<<<< HEAD
           <p className="text-white">{cancelled ? "Yes" : "No"}</p>
+=======
+          <p className="text-white">{cancelled}</p>
+>>>>>>> parent of 52c3490 (Fix: Display all wills including executed ones as transaction history)
         </div>
       </div>
     </motion.div>
