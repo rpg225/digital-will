@@ -1,33 +1,47 @@
-import { BigNumber } from "ethers"
-import { useEffect, useState } from "react"
-import formatTime from "../utils/formatTime"
-import clsx from "clsx"
+import { useEffect, useState } from "react";
+import { ethers } from "ethers";
 
-const CountdownTimer = ({lastPing, deathTimeout, className, children}) => {
-    const [timeleft, setTimeLeft] = useState(0)
+const CountdownTimer = ({ lastPing, deathTimeout }) => {
+  const [timeLeft, setTimeLeft] = useState(0);
 
-    useEffect(() => {
-        const lastPingTime = BigNumber.from(lastPing).toNumber()
-        const timeOut = BigNumber.from(deathTimeout).toNumber()
-        const deathTimeStamp = lastPingTime + timeOut
+  useEffect(() => {
+    if (!lastPing || !deathTimeout) return;
 
-        const updateCountdown = () => {
-            const now = Math.floor(Date.now() / 1000)
-            const remaining = deathTimeStamp - now
-            setTimeLeft(remaining > 0 ? remaining : 0)
-        }
+    // ✅ ENSURE BigNumber math, not JS math
+    const lastPingBN = ethers.BigNumber.from(lastPing);
+    const timeoutBN = ethers.BigNumber.from(deathTimeout);
 
-        updateCountdown()
-        const interval = setInterval(updateCountdown, 1000)
+    const endTime = lastPingBN.add(timeoutBN);
 
-        return () => clearInterval(interval)
-    }, [lastPing, deathTimeout])
+    const tick = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const nowBN = ethers.BigNumber.from(now);
 
-    return (
-        <div className={clsx("font-normal", className)}>
-            {children} {formatTime(timeleft)}
-        </div>
-    )
-}
+      if (nowBN.gte(endTime)) {
+        setTimeLeft(0);
+        return;
+      }
 
-export default CountdownTimer
+      const diff = endTime.sub(nowBN).toNumber(); // SAFE: seconds, small number
+      setTimeLeft(diff);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [lastPing, deathTimeout]);
+
+  if (timeLeft <= 0) return <span>Expired</span>;
+
+  const hours = Math.floor(timeLeft / 3600);
+  const minutes = Math.floor((timeLeft % 3600) / 60);
+  const seconds = timeLeft % 60;
+
+  return (
+    <span>
+      {hours}h {minutes}m {seconds}s
+    </span>
+  );
+};
+
+export default CountdownTimer;

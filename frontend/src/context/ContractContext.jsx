@@ -82,78 +82,40 @@ function ContractProvider({ children }) {
 
   // AUTO-CONNECT IF PREVIOUSLY CONNECTED
   useEffect(() => {
-    let mounted = true;
+  const wallet = getWalletSource();
+  if (!wallet?.on) return;
 
-    const checkConnection = async () => {
-      if (!mounted) return;
+  const handleAccountsChanged = async (accounts) => {
+    console.log("👤 Accounts changed:", accounts);
 
-      const wallet = getWalletSource();
-      if (!wallet) return;
+    if (!accounts || accounts.length === 0) {
+      return;
+    }
 
-      try {
-        const accounts = await wallet.request({ method: "eth_accounts" });
-        if (accounts.length > 0 && mounted) {
-          console.log("🔄 Auto-connecting to previously connected wallet...");
-          
-          // Don't call connectWallet() - just set up the connection directly
-          const ethProvider = new ethers.providers.Web3Provider(wallet);
-          const signer = ethProvider.getSigner();
-          const address = await signer.getAddress();
-          const network = await ethProvider.getNetwork();
+    const ethProvider = new ethers.providers.Web3Provider(wallet);
+    const signer = ethProvider.getSigner();
 
-          console.log("🔗 Auto-connected to network:", network.chainId);
+    setProvider(ethProvider);
+    setSigner(signer);
+    setWalletAddress(accounts[0]);
+    setNetworkError(null);
 
-          if (!ALLOWED_CHAINS.includes(network.chainId.toString())) {
-            setNetworkError("Wrong network. Use Sepolia or Localhost (31337).");
-            return;
-          }
+    console.log("✅ Rebound signer & provider after account change");
+  };
 
-          setProvider(ethProvider);
-          setSigner(signer);
-          setWalletAddress(address);
-          setNetworkError(null);
-        }
-      } catch (err) {
-        console.error("Auto-connect error:", err);
-      }
-    };
+  const handleChainChanged = () => {
+    console.log("⛓️ Chain changed");
+    window.location.reload();
+  };
 
-    checkConnection();
+  wallet.on("accountsChanged", handleAccountsChanged);
+  wallet.on("chainChanged", handleChainChanged);
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // EVENT LISTENERS
-  useEffect(() => {
-    const wallet = getWalletSource();
-    if (!wallet?.on) return;
-
-    const handleAccountsChanged = (accounts) => {
-      console.log("👤 Accounts changed:", accounts);
-      if (accounts.length === 0) {
-        disconnectWallet();
-      } else {
-        // Reconnect with new account
-        connectWallet();
-      }
-    };
-
-    const handleChainChanged = (chainId) => {
-      console.log("⛓️ Chain changed:", chainId);
-      // Reload the page to reset state
-      window.location.reload();
-    };
-
-    wallet.on("accountsChanged", handleAccountsChanged);
-    wallet.on("chainChanged", handleChainChanged);
-
-    return () => {
-      wallet.removeListener?.("accountsChanged", handleAccountsChanged);
-      wallet.removeListener?.("chainChanged", handleChainChanged);
-    };
-  }, []);
+  return () => {
+    wallet.removeListener("accountsChanged", handleAccountsChanged);
+    wallet.removeListener("chainChanged", handleChainChanged);
+  };
+}, []);
 
   return (
     <ContractContext.Provider

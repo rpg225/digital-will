@@ -1,40 +1,114 @@
-# Digital Last Will
+# Digital Will dApp — Frontend Refactor & UX Stabilization
 
-## Inspired by
-- Alchemy University Certification Project
+## Overview
 
-**Digital Last Will** is a decentralized application that allows individuals to create a smart contract-powered digital will. The system ensures that assets (ETH or ERC20 tokens) are securely distributed to designated beneficiaries if the original owner becomes inactive for a specified period.
+This project is a **frontend refactor and UX stabilization** of an existing Ethereum-based **Digital Will decentralized application**.
 
->  Secure your assets. Automate your legacy. Trust code, not courts.
+The original application enables users to create a digital will that distributes ETH to beneficiaries after a defined period of inactivity.  
+This fork focuses on improving **usability, visual clarity, wallet reliability, and frontend robustness** — without modifying the original smart contract logic.
 
-## Features
-
-### Core Features
-- **Create a Digital Will** with multiple beneficiaries and custom distribution percentages
-- **Deposit ETH** directly into your will
-- **Ping Mechanism** to prove you’re still active ("alive")
-- **Automated Will Execution** after a configurable period of inactivity
-- **Manual Executor Access**: Any user can trigger the will once it's eligible
-- **View, Update or Cancel** your will at any time (optional)
-
-
-## Tech Stack
-
-| Layer       | Tech                     |
-|-------------|--------------------------|
-| Smart Contract | Solidity |
-| Framework   | Hardhat                  |
-| Frontend    | React.js, Tailwind CSS   |
-| Blockchain  | Ethereum Sepolia Testnet |
-| Wallet      | MetaMask                 |
+The project is considered **feature-complete for frontend improvements** and is suitable for portfolio presentation.
 
 ---
 
-## Getting Started
+## What Was Done
 
-### 1. Clone the Repo
+### Frontend & UX Improvements
 
-```bash
-git clone https://github.com/papilo-cloud/digital-will.git
-cd digital-will
-```
+- Refactored dashboard layout and visual hierarchy
+- Introduced a clean **law-firm / notary-inspired UI**
+- Added an animated, accessible **Connect Wallet** button using Framer Motion
+- Improved sidebar navigation and reusable card components
+- Hardened UI rendering against invalid or partial contract state
+- Defensive formatting for BigNumber values and timestamps
+- Reduced UI crashes caused by undefined or cleared contract data
+
+### Wallet & Web3 Integration
+
+- Stabilized wallet connection logic
+- Supported **MetaMask** and **Core Wallet**
+- Prevented duplicate `eth_requestAccounts` calls
+- Improved network validation and connection feedback
+- Reduced common Web3 frontend issues (BigNumber overflow, stale signer, reload loops)
+
+### Code Quality & Reliability
+
+- Normalized smart contract return data
+- Improved custom hooks (`useGetWills`) for safer reads
+- Clear separation of concerns:
+  - Context (wallet & provider)
+  - Hooks (contract reads)
+  - UI components
+- Added defensive guards to prevent runtime crashes
+
+---
+
+## Known Limitation (Intentional)
+
+The **My Will** page may show inconsistent state in edge cases (e.g. cancelled or executed wills).
+
+This is due to **semantic ambiguity in the original smart contract**, where:
+
+- Cancelled or executed wills clear beneficiary data
+- The same mapping slot is reused
+- Frontend cannot reliably infer lifecycle history without additional contract state
+
+Fixing this correctly would require **smart contract redesign**, which was intentionally **out of scope** for this frontend-focused refactor.
+
+The **Dashboard** reflects aggregate state correctly.  
+Deeper lifecycle semantics are deferred by design.
+
+---
+
+## Tech Stack
+
+### Frontend
+
+- **React** (Vite)
+- **Tailwind CSS**
+- **Framer Motion**
+- **React Router**
+- **Lucide Icons**
+
+### Web3
+
+- **ethers.js (v5)**
+- **MetaMask**
+- **Core Wallet**
+- **Hardhat** (local development & testing)
+
+### Tooling
+
+- **Vite**
+- **ESLint**
+- **GitHub Desktop**
+
+---
+
+## Project Status
+
+- ✅ Frontend refactor complete  
+- ✅ Wallet integration stabilized  
+- ✅ Deployed and demo-ready  
+- ❌ Smart contract redesign intentionally out of scope  
+
+---
+
+## Why This Project Matters
+
+This project demonstrates the ability to:
+
+- Refactor and stabilize an existing Web3 codebase
+- Improve UX under smart contract constraints
+- Debug real-world dApp integration issues
+- Balance engineering quality with delivery
+- Know when to ship instead of over-engineering
+
+---
+
+## Notes
+
+This repository represents a **frontend-focused contribution** to an existing dApp.  
+All smart contract logic remains unchanged from the original implementation.
+
+---
